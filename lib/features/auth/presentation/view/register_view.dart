@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:multi_select_flutter/multi_select_flutter.dart';
 import 'package:student_management/features/auth/domain/entity/student_entity.dart';
 import 'package:student_management/features/auth/presentation/view_model/register_view_model/register_event.dart';
+import 'package:student_management/features/auth/presentation/view_model/register_view_model/register_state.dart';
 import 'package:student_management/features/auth/presentation/view_model/register_view_model/register_view_model.dart';
 import 'package:student_management/features/batch/data/model/batch_hive_model.dart';
 import 'package:student_management/features/batch/domain/entity/batch_entity.dart';
@@ -42,153 +43,191 @@ class _RegisterViewState extends State<RegisterView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Form(
-              key: _key,
-              child: Column(
-                children: [
-                  _buildProfileImage(),
-                  _gap,
-                  _buildTextField(_fnameController, 'First Name'),
-                  _gap,
-                  _buildTextField(_lnameController, 'Last Name'),
-                  _gap,
-                  _buildTextField(_phoneController, 'Phone No'),
-                  _gap,
+    return BlocListener<StudentBloc, StudentState>(
+      listener: (context, state) {
+        if (state.isSuccess) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Student registered successfully!'),backgroundColor: Colors.green,),
+          );
 
-                  // Batch Dropdown
-                  BlocBuilder<BatchBloc, BatchState>(
-                    builder: (context, state) {
-                      if (state.isLoading) {
-                        return const Center(child: CircularProgressIndicator());
-                      } else if (state.error != null) {
-                        return Text('Error: ${state.error}');
-                      } else {
-                        return DropdownButtonFormField<BatchEntity>(
-                          decoration: const InputDecoration(labelText: 'Select Batch'),
-                          value: _selectedBatch,
-                          items: state.batches
-                              .map((batch) => DropdownMenuItem<BatchEntity>(
-                            value: batch,
-                            child: Text(batch.batchName),
-                          ))
-                              .toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedBatch = value;
-                            });
-                          },
-                          validator: (value) {
-                            if (value == null) {
-                              return 'Please select a batch';
-                            }
-                            return null;
-                          },
-                        );
-                      }
-                    },
-                  ),
+          // Clear form after success
+          _key.currentState!.reset();
+          setState(() {
+            _selectedBatch = null;
+            _selectedCourses = [];
+          });
+        } else if (state.errorMessage != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Registration failed: ${state.errorMessage}')),
+          );
+        }
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Form(
+                key: _key,
+                child: Column(
+                  children: [
+                    _buildProfileImage(),
+                    _gap,
+                    _buildTextField(_fnameController, 'First Name'),
+                    _gap,
+                    _buildTextField(_lnameController, 'Last Name'),
+                    _gap,
+                    _buildTextField(_phoneController, 'Phone No'),
+                    _gap,
 
-                  _gap,
-
-                  // Courses Multi-Select
-                  BlocBuilder<CourseViewModel, CourseState>(
-                    builder: (context, state) {
-                      if (state.isLoading) {
-                        return const Center(child: CircularProgressIndicator());
-                      }  else {
-                        return MultiSelectDialogField<CourseEntity>(
-                          items: state.courses
-                              .map((course) => MultiSelectItem<CourseEntity>(
-                            course,
-                            course.courseName,
-                          ))
-                              .toList(),
-                          listType: MultiSelectListType.CHIP,
-                          buttonText: const Text('Select Courses'),
-                          buttonIcon: const Icon(Icons.school),
-                          title: const Text('Courses'),
-                          searchable: true,
-                          initialValue: _selectedCourses,
-                          onConfirm: (values) {
-                            setState(() {
-                              _selectedCourses = values;
-                            });
-                          },
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.black87),
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                          validator: (values) {
-                            if (values == null || values.isEmpty) {
-                              return 'Please select at least one course';
-                            }
-                            return null;
-                          },
-                        );
-                      }
-                    },
-                  ),
-
-                  _gap,
-                  _buildTextField(_usernameController, 'Username'),
-                  _gap,
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Password'),
-                    validator: ((value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter password';
-                      }
-                      return null;
-                    }),
-                  ),
-                  _gap,
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        if (_key.currentState!.validate()) {
-                          // Submit logic here
-                          final firstName = _fnameController.text.trim();
-                          final lastName = _lnameController.text.trim();
-                          final phone = _phoneController.text.trim();
-                          final username = _usernameController.text.trim();
-                          final password = _passwordController.text.trim();
-                          if (_selectedBatch == null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Please select a batch')),
-                            );
-                            return;
-                          }
-                          if (_selectedCourses.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Please select at least one course')),
-                            );
-                            return;
-                          }
-                          final newStudent = StudentEntity(
-                            firstName: firstName,
-                            lastName: lastName,
-
-                            username: username,
-                            password: password,
-                            batch: BatchHiveModel.fromEntity(_selectedBatch!),
-                          phoneNo: phone, lstCources: CourseHiveModel.fromEntityList(_selectedCourses),
+                    BlocBuilder<BatchBloc, BatchState>(
+                      builder: (context, state) {
+                        if (state.isLoading) {
+                          return const Center(child: CircularProgressIndicator());
+                        } else if (state.error != null) {
+                          return Text('Error: ${state.error}');
+                        } else {
+                          return DropdownButtonFormField<BatchEntity>(
+                            decoration: const InputDecoration(labelText: 'Select Batch'),
+                            value: _selectedBatch,
+                            items: state.batches
+                                .map((batch) => DropdownMenuItem<BatchEntity>(
+                              value: batch,
+                              child: Text(batch.batchName),
+                            ))
+                                .toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedBatch = value;
+                              });
+                            },
+                            validator: (value) {
+                              if (value == null) {
+                                return 'Please select a batch';
+                              }
+                              return null;
+                            },
                           );
-                          context.read<StudentBloc>().add(RegisterStudentEvent(student: newStudent, context: context));
-
                         }
                       },
-                      child: const Text('Register'),
                     ),
-                  ),
-                ],
+
+                    _gap,
+
+                    BlocBuilder<CourseViewModel, CourseState>(
+                      builder: (context, state) {
+                        if (state.isLoading) {
+                          return const Center(child: CircularProgressIndicator());
+                        } else {
+                          return MultiSelectDialogField<CourseEntity>(
+                            items: state.courses
+                                .map((course) => MultiSelectItem<CourseEntity>(
+                              course,
+                              course.courseName,
+                            ))
+                                .toList(),
+                            listType: MultiSelectListType.CHIP,
+                            buttonText: const Text('Select Courses'),
+                            buttonIcon: const Icon(Icons.school),
+                            title: const Text('Courses'),
+                            searchable: true,
+                            initialValue: _selectedCourses,
+                            onConfirm: (values) {
+                              setState(() {
+                                _selectedCourses = values;
+                              });
+                            },
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.black87),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            validator: (values) {
+                              if (values == null || values.isEmpty) {
+                                return 'Please select at least one course';
+                              }
+                              return null;
+                            },
+                          );
+                        }
+                      },
+                    ),
+
+                    _gap,
+                    _buildTextField(_usernameController, 'Username'),
+                    _gap,
+                    TextFormField(
+                      controller: _passwordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(labelText: 'Password'),
+                      validator: ((value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter password';
+                        }
+                        return null;
+                      }),
+                    ),
+                    _gap,
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          if (_key.currentState!.validate()) {
+                            final firstName = _fnameController.text.trim();
+                            final lastName = _lnameController.text.trim();
+                            final phone = _phoneController.text.trim();
+                            final username = _usernameController.text.trim();
+                            final password = _passwordController.text.trim();
+
+                            if (_selectedBatch == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Please select a batch')),
+                              );
+                              return;
+                            }
+                            if (_selectedCourses.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Please select at least one course')),
+                              );
+                              return;
+                            }
+
+                            final newStudent = StudentEntity(
+                              firstName: firstName,
+                              lastName: lastName,
+                              username: username,
+                              password: password,
+                              batch: BatchHiveModel.fromEntity(_selectedBatch!),
+                              phoneNo: phone,
+                              lstCources: CourseHiveModel.fromEntityList(_selectedCourses),
+                            );
+
+                            context.read<StudentBloc>().add(
+                              RegisterStudentEvent(
+                                student: newStudent,
+                                context: context, // You already have it in your event
+                              ),
+                            );
+                          }
+                        },
+                        child: const Text('Register'),
+                      ),
+                    ),
+
+                    // Optionally show loading indicator on bottom
+                    BlocBuilder<StudentBloc, StudentState>(
+                      builder: (context, state) {
+                        if (state.isLoading) {
+                          return const Padding(
+                            padding: EdgeInsets.all(8),
+                            child: CircularProgressIndicator(),
+                          );
+                        } else {
+                          return const SizedBox.shrink();
+                        }
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -196,6 +235,7 @@ class _RegisterViewState extends State<RegisterView> {
       ),
     );
   }
+
 
   // Helper Widgets
   Widget _buildProfileImage() {
